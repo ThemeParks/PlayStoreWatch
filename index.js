@@ -16,6 +16,8 @@ const app = fastify({ logger: true });
 
 const db = level(path.join(process.cwd(), 'store.db'));
 
+const apiKey = process.env.API_KEY;
+
 async function notify(message, icon = undefined) {
     if (!process.env.DISCORD_URL) return;
     
@@ -158,6 +160,17 @@ async function setConfig(key, value) {
 }
 
 function authRequest(req, res, done) {
+    // API key auth takes priority
+    if (apiKey) {
+        if (req.headers['api-key'] == apiKey) {
+            done();
+        } else {
+            res.code(401).send({ok: false});
+        }
+        return;
+    }
+
+    // otherwise assume we're behind some auth system that exposes "remote-groups" header
     const groups = (req.headers['remote-groups'] || '').split(',').map(x => x.trim());
     if (groups.indexOf('admin') < 0) {
         res.code(401).send({ok: false});
