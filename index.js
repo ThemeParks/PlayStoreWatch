@@ -281,7 +281,7 @@ app.route({
 
 async function startServer() {
     try {
-        await app.listen(process.env.PORT || 3000);
+        await app.listen(process.env.PORT || 3000, '0.0.0.0');
         app.log.info(`server listening on ${app.server.address().port}`);
     } catch (err) {
         app.log.error(err);
