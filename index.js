@@ -231,7 +231,10 @@ async function getLatest() {
 
 app.get('/', async (req, res) => {
     const data = await getLatest();
-    return res.view('/templates/index.ejs', {apps: data.map((x => x.data))});
+    // sort by latest -> oldest app update
+    const apps = data.map((x => x.data));
+    apps.sort((a, b) => new Date(b.updated) - new Date(a.updated));
+    return res.view('/templates/index.ejs', {apps});
 });
 
 app.get('/latest', async (req, res) => {
