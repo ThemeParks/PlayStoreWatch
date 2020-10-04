@@ -9,4 +9,6 @@ COPY . .
 ENV PORT 8080
 EXPOSE 8080
 
+VOLUME /usr/src/app/store.db/
+
 CMD [ "node", "." ]
