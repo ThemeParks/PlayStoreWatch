@@ -80,6 +80,46 @@ async function wrap(key, fn, ttl /* seconds */) {
     return JSON.parse(JSON.stringify(newValue));
 }
 
+async function appBrainQuery(appId) {
+    if (!process.env.APPBRAIN) {
+        return undefined;
+    }
+
+    return wrap(`appbrain_${appId}`, async () => {
+        return new Promise((resolve) => {
+            var options = {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            };
+
+            app.log.info(`Fetching ${appId} from appbrain due to varying devices...`);
+            
+            var req = https.request(`https://api.appbrain.com/v2/info/getapp?apikey=${process.env.APPBRAIN}&package=${appId}&format=json`, options, (res) => {
+                res.on('end', () => {
+                    const data = parts.map(x => x.toString()).join('');
+                    const obj = JSON.parse(data.trim());
+                    return resolve(obj);
+                });
+
+                const parts = [];
+                
+                res.on('data', (d) => {
+                    parts.push(d);
+                });
+            });
+            
+            req.on('error', (e) => {
+                app.log.error(e);
+                throw e;
+            });
+            
+            req.end();
+        });
+    }, 60 * 60 * 24); // cache this for 24 hours, API only allows 500 uses a month, so keep this to a minimum!
+}
+
 async function queryApp(appId) {
     return wrap(`gdata_${appId}`, async () => {
         const resp = await gplay.app({
@@ -96,6 +136,12 @@ async function queryApp(appId) {
             icon: resp.icon,
             url: resp.url,
         };
+
+        if (data.version.trim().toLowerCase() === 'varies with device') {
+            // fetch from appbrain instead
+            const appbrainData = await appBrainQuery(appId);
+            data.version = appbrainData.versionString;
+        }
 
         app.log.info(`Updated app ${appId}...`);
         
