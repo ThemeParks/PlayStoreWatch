@@ -18,14 +18,50 @@ const db = level(path.join(process.cwd(), 'store.db'));
 
 const apiKey = process.env.API_KEY;
 
-async function notify(message, icon = undefined) {
-    if (!process.env.DISCORD_URL) return;
+async function request(url, data, options) {
+    return new Promise((resolve, reject) => {
+        var req = https.request(url, options, (res) => {
+            res.on('end', resolve);
     
-    return new Promise((resolve) => {
+            res.on('data', (d) => {
+                // process.stdout.write(d);
+            });
+        });
+        
+        req.on('error', (e) => {
+            app.log.error(e);
+            reject(e);
+        });
+        
+        req.write(data);
+        req.end();
+    });
+}
+
+const notifyQueue = [];
+
+async function notifyLoop() {
+    setInterval(async () => {
+        try {
+            await runNotifyQueue();
+        } catch(e) {
+            app.log.error(`Error running notify loop: ${e}`);
+        }
+    }, 1000 * 10);
+}
+notifyLoop();
+
+async function runNotifyQueue() {
+    if (notifyQueue.length === 0) return;
+    const todo = [];
+    while(notifyQueue.length > 0) {
+        todo.push(notifyQueue.shift());
+    }
+    await Promise.allSettled(todo.map(async (next) => {
         var postData = JSON.stringify({
             username: "Stapler",
-            avatar_url: icon,
-            content: message,
+            avatar_url: next.icon,
+            content: next.message,
         });
 
         var options = {
@@ -36,21 +72,22 @@ async function notify(message, icon = undefined) {
             },
         };
         
-        var req = https.request(process.env.DISCORD_URL, options, (res) => {
-            res.on('end', resolve);
-            
-            res.on('data', (d) => {
-                process.stdout.write(d);
-            });
-        });
+        try {
+            await request(process.env.DISCORD_URL, postData, options);
+        } catch(e) {
+            console.error('notify error!', e);
+            // add back to queue and try again later
+            notifyQueue.push(next);
+        }
+    }));
+}
         
-        req.on('error', (e) => {
-            app.log.error(e);
-            throw e;
-        });
-        
-        req.write(postData);
-        req.end();
+async function notify(message, icon = undefined) {
+    if (!process.env.DISCORD_URL) return;
+    // push to our queue, process later
+    notifyQueue.push({
+        message,
+        icon,
     });
 }
 
