@@ -1,33 +1,45 @@
-<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
-<table class="pure-table pure-table-horizontal">
-    <thead>
-        <tr>
-            <th>App ID</th>
-            <th>Icon</th>
-            <th>Version</th>
-            <th>Last Updated</th>
-            <th>Publish Date</th>
-            <th>Changelog</th>
-        </tr>
-    </thead>
-    <tbody>
-        <% apps.forEach((app) => { %>
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>ThemeParks.wiki - App Store Watch</title>
+    <meta name="referrer" content="never">
+    <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
+</head>
+<body>
+    <p>
+        This page monitors Theme Park apps for changes published to the Google Play store. When an app changes, it should be investigated for new features.
+    </p>
+    <table class="pure-table pure-table-horizontal">
+        <thead>
             <tr>
-                <td><a href='<%= app.url %>'><%= app.id %></a></td>
-                <td><img width=64 src='<%= app.icon %>'/></td>
-                <td><%= app.version %></td>
-                <td><%= new Date(app.last_changed).toLocaleString('en-gb', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                }) %></td>
-                <td><%= new Date(app.updated).toLocaleString('en-gb', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                }) %></td>
-                <td><%= app.changelog %></td>
+                <th>App ID</th>
+                <th>Icon</th>
+                <th>Version</th>
+                <th>Last Updated</th>
+                <th>Publish Date</th>
+                <th>Changelog</th>
             </tr>
-        <% }); %>
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            <% apps.forEach((app) => { %>
+                <tr>
+                    <td><a href='<%= app.url %>'><%= app.id %></a></td>
+                    <td><img width=64 src='<%= app.icon %>'/></td>
+                    <td><%= app.version %></td>
+                    <td><%= new Date(app.last_changed).toLocaleString('en-gb', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                    }) %></td>
+                    <td><%= new Date(app.updated).toLocaleString('en-gb', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                    }) %></td>
+                    <td><%= app.changelog %></td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+</body>
