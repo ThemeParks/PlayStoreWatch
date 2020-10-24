@@ -5,7 +5,8 @@
             <th>App ID</th>
             <th>Icon</th>
             <th>Version</th>
-            <th>Last Changed</th>
+            <th>Last Updated</th>
+            <th>Publish Date</th>
             <th>Changelog</th>
         </tr>
     </thead>
@@ -15,6 +16,11 @@
                 <td><a href='<%= app.url %>'><%= app.id %></a></td>
                 <td><img width=64 src='<%= app.icon %>'/></td>
                 <td><%= app.version %></td>
+                <td><%= new Date(app.last_changed).toLocaleString('en-gb', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                }) %></td>
                 <td><%= new Date(app.updated).toLocaleString('en-gb', {
                     year: 'numeric',
                     month: 'short',

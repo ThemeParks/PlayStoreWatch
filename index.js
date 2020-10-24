@@ -172,7 +172,15 @@ async function queryApp(appId) {
             name: resp.title,
             icon: resp.icon,
             url: resp.url,
+            last_changed: null,
         };
+
+        // get last changed date
+        let lastChangedDate = null;
+        try {
+            lastChangedDate = new Date(await db.get(`app_lastchanged_${appId}`));
+        } catch(e) {}
+        data.last_changed = lastChangedDate;
 
         if (data.version.trim().toLowerCase() === 'varies with device') {
             // fetch from appbrain instead
@@ -189,6 +197,11 @@ async function queryApp(appId) {
         if (existing === undefined || existing.version != data.version)
         {
             app.log.warn(`App ${appId} version changed from ${existing?.version} to ${data.version}`);
+
+            // record detected update time (publish time can be in the past if it was a slow roll out for alpha/beta etc.)
+            const now = new Date();
+            await db.put(`app_lastchanged_${appId}`, now.toString());
+            data.last_changed = now;
 
             // send notification
             notify(`App ${appId} version changed from ${existing?.version} to ${data.version}`, data.icon);
@@ -316,7 +329,7 @@ app.get('/', async (req, res) => {
     const data = await getLatest();
     // sort by latest -> oldest app update
     const apps = data.map((x => x.data));
-    apps.sort((a, b) => new Date(b.updated) - new Date(a.updated));
+    apps.sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed));
     return res.view('/templates/index.ejs', {apps});
 });
 
