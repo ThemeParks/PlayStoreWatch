@@ -279,9 +279,9 @@ async function watch() {
     // for the watch.
     const config = await getConfig();
     // refresh all apps
-    await Promise.all(config.apps.map(async (app) => {
+    await Promise.all(config.apps.map(async (application) => {
         try {
-            await queryApp(app);
+            await queryApp(application);
         } catch(err) {
             app.log.error(err);
         }
