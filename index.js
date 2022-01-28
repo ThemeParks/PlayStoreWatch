@@ -328,7 +328,10 @@ async function getLatest() {
 app.get('/', async (req, res) => {
     const data = await getLatest();
     // sort by latest -> oldest app update
-    const apps = data.map((x => x.data));
+    const apps = data.map((x => ({
+        ...x.data,
+        changelog: x.data.changelog.replace("<br>", "\n"),
+    })));
     apps.sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed));
     return res.view('/templates/index.ejs', {apps});
 });
