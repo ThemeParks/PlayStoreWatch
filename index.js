@@ -330,7 +330,7 @@ app.get('/', async (req, res) => {
     // sort by latest -> oldest app update
     const apps = data.map((x => ({
         ...x.data,
-        changelog: x.data.changelog.replace("<br>", "\n"),
+        changelog: x?.data?.changelog ? x.data.changelog.replace("<br>", "\n") : '',
     })));
     apps.sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed));
     return res.view('/templates/index.ejs', {apps});
