@@ -1,23 +1,27 @@
 import React, { useEffect, useState } from 'react';
 
-export function TestComponent() {
-    const [time, setTime] = useState('');
+export function TestComponent({ timer = 10 }) {
+    const [counter, setCounter] = useState('');
+
     useEffect(() => {
-        // every 10 seconds, fetch the time from /api/time
-        const interval = setInterval(() => {
-            fetch('/api/time')
+        const getCounter = () => {
+            fetch('/api/counter')
                 .then(res => res.text())
                 .then(data => {
-                    setTime(data);
+                    setCounter(data);
                 }
                 );
-        }, 10 * 1000);
+        };
+
+        // every x seconds, fetch the counter from /api/counter
+        const interval = setInterval(getCounter, timer * 1000);
+        getCounter(); // update immediately too
         return () => clearInterval(interval);
-    });
+    }, []);
 
     return <>
         <h1>Test Cloudflare Deployment 🌟⏲</h1>
-        <h2>{time}</h2>
+        <h2>{counter}</h2>
     </>;
 }
 export default TestComponent;

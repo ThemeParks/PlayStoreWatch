@@ -7,6 +7,6 @@ const root = createRoot(document.getElementById('root'));
 
 root.render(
     <React.StrictMode>
-        <TestComponent />
+        <TestComponent timer={5} />
     </React.StrictMode>
 );
