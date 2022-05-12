@@ -5,8 +5,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node ."
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "author": "",
   "license": "ISC",
@@ -17,6 +18,15 @@
     "fastify": "^3.5.0",
     "google-play-scraper": "^8.1.0",
     "level": "^6.0.1",
-    "point-of-view": "^4.6.0"
+    "point-of-view": "^4.6.0",
+    "react": "^18.1.0",
+    "react-dom": "^18.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^1.3.0",
+    "sass": "^1.50.1",
+    "vite": "^2.9.2"
   }
 }
