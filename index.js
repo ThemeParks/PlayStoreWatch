@@ -173,7 +173,7 @@ async function getAppDataFromAppBrain(appId) {
     const appData = {
         id: appId,
         version: resp.versionString,
-        updated: new Date(resp.lastAppUpdateTime),
+        updated: new Date(resp.lastAppUpdateTime * 1000),
         changelog: recentChanges,
         size: resp.apkSize,
         name: resp.name,
