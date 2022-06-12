@@ -1,20 +1,17 @@
-import path from 'path';
 import https from 'https';
-
 import dotenv from 'dotenv';
 import gplay from 'google-play-scraper';
 import fastify from 'fastify';
 import pov from 'point-of-view';
 import ejs from 'ejs';
-import level from 'level';
 import cron from 'cron';
+import { wrap, get as dbGet, put as dbPut } from './cache.js';
 const { CronJob } = cron;
+import { getAppDetails } from './apkpure.js';
 
 dotenv.config();
 
 const app = fastify({ logger: true });
-
-const db = level(path.join(process.cwd(), 'store.db'));
 
 const apiKey = process.env.API_KEY;
 
@@ -89,32 +86,6 @@ async function notify(message, icon = undefined) {
         message,
         icon,
     });
-}
-
-async function wrap(key, fn, ttl /* seconds */) {
-    try {
-        const res = await db.get(key);
-        const data = JSON.parse(res);
-        const now = +new Date();
-        if (data.expires >= now) {
-            return data.data;
-        }
-    } catch (e) {
-        if (e.name !== 'NotFoundError') {
-            throw e;
-        }
-    }
-
-    // could not find cached data, fetch it
-    const newValue = await fn();
-
-    await db.put(key, JSON.stringify({
-        data: newValue,
-        expires: (+new Date()) + (ttl * 1000),
-    }));
-
-    // stringify and re-parse so we get the same result as if we had just pulled from the cache
-    return JSON.parse(JSON.stringify(newValue));
 }
 
 async function appBrainQuery(appId) {
@@ -203,18 +174,28 @@ async function queryApp(appId) {
             data.size = resp.size;
             data.version = resp.version;
         } catch (e) {
-            // node library failed, use appbrain
-            app.log.error(`Error querying nodejs lib: ${e}`);
-            const appData = await getAppDataFromAppBrain(appId);
-            Object.keys(appData).forEach(key => {
-                data[key] = appData[key];
-            });
+            try {
+                const apkPureAppDate = await getAppDetails(appId);
+                if (apkPureAppDate === undefined) {
+                    throw new Error(`APK Pure failed to find app ${appId}`);
+                }
+                Object.keys(apkPureAppDate).forEach(key => {
+                    data[key] = apkPureAppDate[key];
+                });
+            } catch (e2) {
+                // node library failed, use appbrain
+                app.log.error(`Error querying apkpure: ${e}`);
+                const appData = await getAppDataFromAppBrain(appId);
+                Object.keys(appData).forEach(key => {
+                    data[key] = appData[key];
+                });
+            }
         }
 
         // get last changed date
         let lastChangedDate = null;
         try {
-            lastChangedDate = new Date(await db.get(`app_lastchanged_${appId}`));
+            lastChangedDate = new Date(await dbGet(`app_lastchanged_${appId}`));
         } catch (e) { }
         data.last_changed = lastChangedDate;
 
@@ -228,14 +209,14 @@ async function queryApp(appId) {
 
         let existing;
         try {
-            existing = JSON.parse(await db.get(`app_${appId}`));
+            existing = JSON.parse(await dbGet(`app_${appId}`));
         } catch (e) { }
         if (existing === undefined || existing.version != data.version) {
             app.log.warn(`App ${appId} version changed from ${existing?.version} to ${data.version}`);
 
             // record detected update time (publish time can be in the past if it was a slow roll out for alpha/beta etc.)
             const now = new Date();
-            await db.put(`app_lastchanged_${appId}`, now.toString());
+            await dbPut(`app_lastchanged_${appId}`, now.toString());
             data.last_changed = now;
 
             // send notification
@@ -243,7 +224,7 @@ async function queryApp(appId) {
         }
 
         // store last-fetched app data
-        await db.put(`app_${appId}`, JSON.stringify(data));
+        await dbPut(`app_${appId}`, JSON.stringify(data));
 
         return data;
     }, 120);
@@ -256,7 +237,7 @@ async function getConfig() {
         return _config;
     }
     try {
-        const c = await db.get('config');
+        const c = await dbGet('config');
         _config = JSON.parse(c);
     } catch (e) {
         _config = {
@@ -276,7 +257,7 @@ async function addConfigArrayElement(key, value) {
     // put our new value if it's not already in the array
     if (conf[key].indexOf(value) < 0) {
         conf[key].push(value);
-        await db.put('config', JSON.stringify(conf));
+        await dbPut('config', JSON.stringify(conf));
         configInvalid = true;
     } else {
         throw new Error('Element already in array');
@@ -286,7 +267,7 @@ async function addConfigArrayElement(key, value) {
 async function setConfig(key, value) {
     const conf = await getConfig();
     conf[key] = value;
-    await db.put('config', JSON.stringify(conf));
+    await dbPut('config', JSON.stringify(conf));
     configInvalid = true;
 }
 
@@ -348,7 +329,7 @@ async function getLatest() {
         try {
             return {
                 id: app,
-                data: JSON.parse(await db.get(`app_${app}`)),
+                data: JSON.parse(await dbGet(`app_${app}`)),
             };
         } catch (err) {
             return {
@@ -377,7 +358,7 @@ app.get('/latest', async (req, res) => {
 
 app.get('/latest/:appId', async (req, res) => {
     try {
-        const data = JSON.parse(await db.get(`app_${req.params.appId}`));
+        const data = JSON.parse(await dbGet(`app_${req.params.appId}`));
         return data;
     } catch (e) {
         res.code(404).send({ error: "Not found" });
@@ -393,6 +374,11 @@ app.route({
         return { ok: true };
     },
 });
+
+async function addApp(appId) {
+    await addConfigArrayElement('apps', appId);
+    await queryApp(appId);
+}
 
 app.route({
     method: 'POST',
@@ -415,8 +401,7 @@ app.route({
         try {
             for (let i = 0; i < req.body.appId.length; i++) {
                 try {
-                    await addConfigArrayElement('apps', req.body.appId[i]);
-                    await queryApp(req.body.appId[i]);
+                    await addApp(req.body.appId[i]);
                 } catch (e) {
                     app.log.error(e);
                 }
@@ -447,3 +432,10 @@ app.register(pov, {
 
 startServer();
 startWatcher();
+
+try {
+    // addApp('nl.walibi.corporate');
+    // getAppDataFromAppBrain('com.disney.wdw.android').then(console.log);
+} catch (e) {
+    app.log.error(e);
+}
