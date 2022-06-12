@@ -8,7 +8,7 @@ import pov from 'point-of-view';
 import ejs from 'ejs';
 import level from 'level';
 import cron from 'cron';
-const {CronJob} = cron;
+const { CronJob } = cron;
 
 dotenv.config();
 
@@ -22,17 +22,17 @@ async function request(url, data, options) {
     return new Promise((resolve, reject) => {
         var req = https.request(url, options, (res) => {
             res.on('end', resolve);
-    
+
             res.on('data', (d) => {
                 // process.stdout.write(d);
             });
         });
-        
+
         req.on('error', (e) => {
             app.log.error(e);
             reject(e);
         });
-        
+
         req.write(data);
         req.end();
     });
@@ -44,7 +44,7 @@ async function notifyLoop() {
     setInterval(async () => {
         try {
             await runNotifyQueue();
-        } catch(e) {
+        } catch (e) {
             app.log.error(`Error running notify loop: ${e}`);
         }
     }, 1000 * 10);
@@ -54,7 +54,7 @@ notifyLoop();
 async function runNotifyQueue() {
     if (notifyQueue.length === 0) return;
     const todo = [];
-    while(notifyQueue.length > 0) {
+    while (notifyQueue.length > 0) {
         todo.push(notifyQueue.shift());
     }
     await Promise.allSettled(todo.map(async (next) => {
@@ -71,17 +71,17 @@ async function runNotifyQueue() {
                 'Content-Length': postData.length
             },
         };
-        
+
         try {
             await request(process.env.DISCORD_URL, postData, options);
-        } catch(e) {
+        } catch (e) {
             console.error('notify error!', e);
             // add back to queue and try again later
             notifyQueue.push(next);
         }
     }));
 }
-        
+
 async function notify(message, icon = undefined) {
     if (!process.env.DISCORD_URL) return;
     // push to our queue, process later
@@ -99,7 +99,7 @@ async function wrap(key, fn, ttl /* seconds */) {
         if (data.expires >= now) {
             return data.data;
         }
-    } catch(e) {
+    } catch (e) {
         if (e.name !== 'NotFoundError') {
             throw e;
         }
@@ -132,7 +132,7 @@ async function appBrainQuery(appId) {
             };
 
             app.log.info(`Fetching ${appId} from appbrain due to varying devices...`);
-            
+
             var req = https.request(`https://api.appbrain.com/v2/info/getapp?apikey=${process.env.APPBRAIN}&package=${appId}&format=json`, options, (res) => {
                 res.on('end', () => {
                     const data = parts.map(x => x.toString()).join('');
@@ -141,45 +141,81 @@ async function appBrainQuery(appId) {
                 });
 
                 const parts = [];
-                
+
                 res.on('data', (d) => {
                     parts.push(d);
                 });
             });
-            
+
             req.on('error', (e) => {
                 app.log.error(e);
                 throw e;
             });
-            
+
             req.end();
         });
     }, 60 * 60 * 24); // cache this for 24 hours, API only allows 500 uses a month, so keep this to a minimum!
 }
 
+async function getAppDataFromAppBrain(appId) {
+    const resp = await appBrainQuery(appId);
+    if (!resp) {
+        return undefined;
+    }
+
+    let recentChanges = '';
+    try {
+        recentChanges = (resp.description || '').split('Recent changes:\n').pop();
+    } catch (e) {
+        // app.log.error(e);
+    }
+
+    const appData = {
+        id: appId,
+        version: resp.versionString,
+        updated: new Date(resp.lastAppUpdateTime),
+        changelog: recentChanges,
+        size: resp.apkSize,
+        name: resp.name,
+        icon: resp.iconUrl,
+        url: `https://play.google.com/store/apps/details?id=${appId}`,
+    };
+
+    return appData;
+}
+
 async function queryApp(appId) {
     return wrap(`gdata_${appId}`, async () => {
-        const resp = await gplay.app({
-            appId,
-        });
-
         const data = {
             id: appId,
-            version: resp.version,
-            updated: new Date(resp.updated),
-            changelog: resp.recentChanges,
-            size: resp.size,
-            name: resp.title,
-            icon: resp.icon,
-            url: resp.url,
             last_changed: null,
         };
+        try {
+            const resp = await gplay.app({
+                appId,
+            });
+
+            data.name = resp.title;
+            data.icon = resp.icon;
+            data.url = resp.url;
+            data.updated = new Date(resp.updated);
+            data.changelog = resp.recentChanges;
+            data.size = resp.size;
+            data.version = resp.version;
+        } catch (e) {
+            // node library failed, use appbrain
+            app.log.error(`Error querying nodejs lib: ${e}`);
+            const appData = await getAppDataFromAppBrain(appId);
+            Object.keys(appData).forEach(key => {
+                data[key] = appData[key];
+            });
+        }
 
         // get last changed date
         let lastChangedDate = null;
         try {
             lastChangedDate = new Date(await db.get(`app_lastchanged_${appId}`));
-        } catch(e) {}
+        } catch (e) { }
         data.last_changed = lastChangedDate;
 
         if (data.version.trim().toLowerCase() === 'varies with device') {
@@ -189,13 +225,12 @@ async function queryApp(appId) {
         }
 
         app.log.info(`Updated app ${appId}...`);
-        
+
         let existing;
         try {
             existing = JSON.parse(await db.get(`app_${appId}`));
-        } catch(e) {}
-        if (existing === undefined || existing.version != data.version)
-        {
+        } catch (e) { }
+        if (existing === undefined || existing.version != data.version) {
             app.log.warn(`App ${appId} version changed from ${existing?.version} to ${data.version}`);
 
             // record detected update time (publish time can be in the past if it was a slow roll out for alpha/beta etc.)
@@ -223,7 +258,7 @@ async function getConfig() {
     try {
         const c = await db.get('config');
         _config = JSON.parse(c);
-    } catch(e) {
+    } catch (e) {
         _config = {
             apps: [],
         };
@@ -261,7 +296,7 @@ function authRequest(req, res, done) {
         if (req.headers['api-key'] == apiKey) {
             done();
         } else {
-            res.code(401).send({ok: false});
+            res.code(401).send({ ok: false });
         }
         return;
     }
@@ -269,7 +304,7 @@ function authRequest(req, res, done) {
     // otherwise assume we're behind some auth system that exposes "remote-groups" header
     const groups = (req.headers['remote-groups'] || '').split(',').map(x => x.trim());
     if (groups.indexOf('admin') < 0) {
-        res.code(401).send({ok: false});
+        res.code(401).send({ ok: false });
     }
     done();
 }
@@ -282,7 +317,7 @@ async function watch() {
     await Promise.all(config.apps.map(async (application) => {
         try {
             await queryApp(application);
-        } catch(err) {
+        } catch (err) {
             app.log.error(err);
         }
     }));
@@ -295,7 +330,7 @@ async function startWatcher() {
         async () => {
             try {
                 await watch();
-            } catch(err) {
+            } catch (err) {
                 // TODO - alert on failure
             }
         },
@@ -315,7 +350,7 @@ async function getLatest() {
                 id: app,
                 data: JSON.parse(await db.get(`app_${app}`)),
             };
-        } catch(err) {
+        } catch (err) {
             return {
                 id: app,
                 data: undefined,
@@ -333,7 +368,7 @@ app.get('/', async (req, res) => {
         changelog: x?.data?.changelog ? x.data.changelog.replace("<br>", "\n") : '',
     })));
     apps.sort((a, b) => new Date(b.last_changed) - new Date(a.last_changed));
-    return res.view('/templates/index.ejs', {apps});
+    return res.view('/templates/index.ejs', { apps });
 });
 
 app.get('/latest', async (req, res) => {
@@ -344,8 +379,8 @@ app.get('/latest/:appId', async (req, res) => {
     try {
         const data = JSON.parse(await db.get(`app_${req.params.appId}`));
         return data;
-    } catch(e) {
-        res.code(404).send({error: "Not found"});
+    } catch (e) {
+        res.code(404).send({ error: "Not found" });
     }
 });
 
@@ -353,9 +388,9 @@ app.route({
     method: 'POST',
     url: '/admin/refresh',
     preHandler: authRequest,
-    handler: async(req, res) => {
+    handler: async (req, res) => {
         await watch();
-        return {ok: true};
+        return { ok: true };
     },
 });
 
@@ -370,26 +405,26 @@ app.route({
             200: {
                 type: 'object',
                 properties: {
-                    ok: {type: 'boolean'},
+                    ok: { type: 'boolean' },
                 },
             },
         },
     },
     preHandler: authRequest,
-    handler: async(req, res) => {
+    handler: async (req, res) => {
         try {
-            for(let i=0; i<req.body.appId.length; i++) {
+            for (let i = 0; i < req.body.appId.length; i++) {
                 try {
                     await addConfigArrayElement('apps', req.body.appId[i]);
                     await queryApp(req.body.appId[i]);
-                } catch(e) {
+                } catch (e) {
                     app.log.error(e);
                 }
             }
-            return {ok: true};
-        } catch(e) {
+            return { ok: true };
+        } catch (e) {
             app.log.error(e);
-            return {ok: false};
+            return { ok: false };
         }
     },
 });
